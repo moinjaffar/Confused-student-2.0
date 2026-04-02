@@ -1,0 +1,166 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: /users/{userId}
+// Document ID: userId (string)
+// Fields:
+//   - uid: string (required)
+//   - email: string (required, email format)
+//   - displayName: string (required)
+//   - photoURL: string (optional, uri format)
+//   - createdAt: string (required, date-time format)
+//   - updatedAt: string (required, date-time format)
+//   - preferences: map (optional)
+//
+// Collection: /users/{userId}/sessions/{sessionId}
+// Document ID: sessionId (string)
+// Fields:
+//   - id: string (required)
+//   - userId: string (required)
+//   - startTime: string (required, date-time format)
+//   - endTime: string (optional, date-time format)
+//   - duration: number (optional)
+//   - subject: string (required)
+//   - topic: string (optional)
+//   - notes: string (optional)
+//   - focusScore: number (optional)
+//   - status: string (required, enum: active, completed, paused)
+//
+// Collection: /users/{userId}/tasks/{taskId}
+// Document ID: taskId (string)
+// Fields:
+//   - id: string (required)
+//   - userId: string (required)
+//   - title: string (required)
+//   - description: string (optional)
+//   - dueDate: string (optional, date-time format)
+//   - priority: string (required, enum: low, medium, high)
+//   - status: string (required, enum: todo, in-progress, completed)
+//   - subject: string (required)
+//   - createdAt: string (required, date-time format)
+//
+// Collection: /users/{userId}/insights/{insightId}
+// Document ID: insightId (string)
+// Fields:
+//   - id: string (required)
+//   - userId: string (required)
+//   - date: string (required, date-time format)
+//   - content: string (required)
+//   - type: string (required, enum: productivity, focus, subject-mastery)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "moinjaffar497@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt', 'preferences', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && isValidEmail(data.email) &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             isValidDateString(data.createdAt) &&
+             isValidDateString(data.updatedAt);
+    }
+
+    function isValidSession(data, userId) {
+      return hasOnlyAllowedFields(['id', 'userId', 'startTime', 'endTime', 'duration', 'subject', 'topic', 'notes', 'focusScore', 'status']) &&
+             data.userId == userId &&
+             data.id is string &&
+             isValidDateString(data.startTime) &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() < 100 &&
+             data.status in ['active', 'completed', 'paused'];
+    }
+
+    function isValidTask(data, userId) {
+      return hasOnlyAllowedFields(['id', 'userId', 'title', 'description', 'dueDate', 'priority', 'status', 'subject', 'createdAt']) &&
+             data.userId == userId &&
+             data.id is string &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.priority in ['low', 'medium', 'high'] &&
+             data.status in ['todo', 'in-progress', 'completed'] &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() < 100 &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidInsight(data, userId) {
+      return hasOnlyAllowedFields(['id', 'userId', 'date', 'content', 'type']) &&
+             data.userId == userId &&
+             data.id is string &&
+             isValidDateString(data.date) &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             data.type in ['productivity', 'focus', 'subject-mastery'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+
+      match /sessions/{sessionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidSession(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidSession(request.resource.data, userId);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidTask(request.resource.data, userId);
+        allow update: if isOwner(userId) && isValidTask(request.resource.data, userId);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /insights/{insightId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isAdmin(); // Only AI/Admin should create insights (simulated for now)
+        allow update: if isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

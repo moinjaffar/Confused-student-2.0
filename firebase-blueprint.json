@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user account information and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique identifier for the user." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "photoURL": { "type": "string", "format": "uri", "description": "The user's profile picture URL." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the profile was created." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "When the profile was last updated." },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "theme": { "type": "string", "enum": ["light", "dark", "system"] },
+            "studyReminders": { "type": "boolean" }
+          }
+        }
+      },
+      "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "StudySession": {
+      "title": "Study Session",
+      "description": "Represents a single study session for a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "duration": { "type": "number" },
+        "subject": { "type": "string" },
+        "topic": { "type": "string" },
+        "notes": { "type": "string" },
+        "focusScore": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "completed", "paused"] }
+      },
+      "required": ["id", "userId", "startTime", "subject", "status"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A study task or assignment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "status": { "type": "string", "enum": ["todo", "in-progress", "completed"] },
+        "subject": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "priority", "status", "subject", "createdAt"]
+    },
+    "StudyInsight": {
+      "title": "Study Insight",
+      "description": "AI-generated insights for the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["productivity", "focus", "subject-mastery"] }
+      },
+      "required": ["id", "userId", "date", "content", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "The user's profile document."
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "StudySession",
+      "description": "The user's study sessions."
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "The user's study tasks."
+    },
+    "/users/{userId}/insights/{insightId}": {
+      "schema": "StudyInsight",
+      "description": "The user's study insights."
+    }
+  }
+}
